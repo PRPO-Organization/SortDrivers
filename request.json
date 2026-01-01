@@ -1,0 +1,9 @@
+{
+  "sortBy": "hybrid",
+  "passengerLocation": { "lat": 41.9981, "lng": 21.4254 },
+  "drivers": [
+    { "driverId": "D1", "lat": 42.0, "lng": 21.42, "rating": 4.5, "eta": 6, "available": true },
+    { "driverId": "D2", "lat": 41.99, "lng": 21.43, "rating": 4.9, "eta": 4, "available": true },
+    { "driverId": "D3", "lat": 41.97, "lng": 21.40, "rating": 3.8, "eta": 10, "available": false }
+  ]
+}
