@@ -2,6 +2,7 @@ apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: sortdrivers-deployment
+  namespace: prpo-microservices
   labels:
     app: sortdrivers
 spec:
@@ -16,7 +17,8 @@ spec:
     spec:
       containers:
       - name: sortdrivers
-        image: dimitartrj/sortdrivers:latest
+        image: prporegistry.azurecr.io/sortdrivers:latest
+        imagePullPolicy: Always
         ports:
         - containerPort: 8080
 ---
@@ -24,6 +26,7 @@ apiVersion: v1
 kind: Service
 metadata:
   name: sortdrivers-service
+  namespace: prpo-microservices
 spec:
   type: ClusterIP
   selector:

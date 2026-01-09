@@ -14,6 +14,7 @@ public class  UserLocationDTO extends LocationDTO{
     private long id ;
     Date createdAt;
     Date updatedAt;
+    private Double rating;  
     public UserLocationDTO(){
     }
   
@@ -30,6 +31,13 @@ public class  UserLocationDTO extends LocationDTO{
     }
     public void setCreatedAt(Date createdAt) {
         this.createdAt = createdAt;
+    }
+     public Double getRating() {
+        return rating;
+    }
+    
+    public void setRating(Double rating) {
+        this.rating = rating;
     }
 
    
