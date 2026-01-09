@@ -1,12 +1,17 @@
 package com.example.sortdrivers.service;
 
-import com.example.sortdrivers.dto.*;
-import com.example.sortdrivers.util.DistanceUtil;
-import org.springframework.stereotype.Service;
-
 import java.util.Comparator;
 import java.util.List;
 import java.util.stream.Collectors;
+
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.stereotype.Service;
+import org.springframework.web.client.RestTemplate;
+
+import com.example.sortdrivers.dto.SortRequest;
+import com.example.sortdrivers.dto.SortedDriverDTO;
+import com.example.sortdrivers.dto.UserLocationDTO;
+import com.example.sortdrivers.util.DistanceUtil;
 
 @Service
 public class SortDriversService {
@@ -17,54 +22,73 @@ public class SortDriversService {
      * @param request The sort request containing drivers, passenger location, sortBy, and includeUnavailable.
      * @return List of SortedDriverDTO sorted according to the rules.
      */
+    private final String RATING_API = "https://9.235.137.130/api/ratings";
+    private final String LOCATION_API = "https://9.235.137.130/api/location";
+
+
+    @Autowired
+    private RestTemplate restTemplate;
     public List<SortedDriverDTO> sortDrivers(SortRequest request) {
-        double pLat = request.getPassengerLocation().getLat();
+           double pLat = request.getPassengerLocation().getLat();
         double pLng = request.getPassengerLocation().getLng();
 
-        // Map all drivers to SortedDriverDTO (including unavailable if needed)
-        List<SortedDriverDTO> drivers = request.getDrivers().stream()
-                .map(d -> new SortedDriverDTO(
-                        d.getDriverId(),
-                        DistanceUtil.haversine(pLat, pLng, d.getLat(), d.getLng()),
-                        d.getRating(),
-                        d.getEta(),
-                        d.isAvailable()
-                ))
+        // 1️⃣ Get all driver locations from API
+        UserLocationDTO[] drivers = restTemplate.getForObject(LOCATION_API, UserLocationDTO[].class);
+
+        // 2️⃣ Map to SortedDriverDTO
+        List<SortedDriverDTO> driverDTOs = List.of(drivers).stream()
+                .map(driver -> {
+                    // Fetch rating for each driver
+                    Double rating = getUserRating(driver.getId());
+
+                    // Compute distance from passenger
+                    double distanceKm = DistanceUtil.haversine(pLat, pLng, driver.getLat(), driver.getLng());
+
+                    return new SortedDriverDTO(
+                            (int) driver.getId(),        // cast long -> Integer
+                            distanceKm,
+                            rating != null ? rating : 0.0,
+                            0.0,                        // ETA (can be computed later)
+                            true                        // all are drivers
+                    );
+                })
                 .collect(Collectors.toList());
 
-        // Default sorting mode
-        String sortBy = request.getSortBy();
-        if (sortBy == null) sortBy = "distance";
+        // 3️⃣ Determine sort mode
+        String sortBy = request.getSortBy() != null ? request.getSortBy().toLowerCase() : "rating";
 
-        // Comparator for the chosen sorting mode
         Comparator<SortedDriverDTO> comparator;
-
-        switch (sortBy.toLowerCase()) {
-            case "rating":
-                comparator = Comparator.comparingDouble(SortedDriverDTO::getRating).reversed();
-                break;
-            case "eta":
-                comparator = Comparator.comparingDouble(SortedDriverDTO::getEta);
-                break;
-            case "hybrid":
-                comparator = Comparator
-                        .comparingDouble(SortedDriverDTO::getEta)
-                        .thenComparingDouble(SortedDriverDTO::getDistanceKm)
+        switch (sortBy) {
+            case "distance":
+                comparator = Comparator.comparingDouble(SortedDriverDTO::getDistanceKm)
                         .thenComparing(Comparator.comparingDouble(SortedDriverDTO::getRating).reversed());
                 break;
-            default: // "distance"
+            case "hybrid":
                 comparator = Comparator
                         .comparingDouble(SortedDriverDTO::getDistanceKm)
                         .thenComparing(Comparator.comparingDouble(SortedDriverDTO::getRating).reversed());
                 break;
+            case "rating":
+            default:
+                comparator = Comparator.comparingDouble(SortedDriverDTO::getRating).reversed();
         }
 
-        // Add availability as top-level sorting: available drivers first
-        comparator = Comparator.comparing(SortedDriverDTO::isAvailable).reversed()
-                .thenComparing(comparator);
-
-        return drivers.stream()
+        // 4️⃣ Sort and return
+        return driverDTOs.stream()
                 .sorted(comparator)
                 .collect(Collectors.toList());
     }
+
+    
+
+    public UserLocationDTO getUserLocation(Long userId) {
+        return restTemplate.getForObject(RATING_API + "/nearest/" + userId,UserLocationDTO.class);
+    }
+
+    
+    public Double getUserRating(Long userId) {
+    // RATING_API is the base URL of the external ratings API, e.g., "https://external-api.com/ratings"
+    String url = RATING_API + "/users/" + userId +"/avg";
+    return restTemplate.getForObject(url, Double.class);
+}
 }
